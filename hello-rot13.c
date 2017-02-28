@@ -39,6 +39,7 @@ static struct file_operations rot13_fops =
 };
 
 struct rot13 {
+	struct mutex mtx;
 	char buf[BUF_SIZE];
 	size_t written;
 };
@@ -59,27 +60,46 @@ static int rot13_open(struct inode *inodep, struct file *filep) {
 	struct rot13 *rot13 = kmalloc(GFP_KERNEL, sizeof *rot13);
 	if (rot13 == NULL)
 		return -ENOMEM;
+	mutex_init(&rot13->mtx);
 	rot13->written = 0;
 	filep->private_data = rot13;
 	return 0;
 }
 
 static ssize_t rot13_read(struct file *filep, char __user *buffer, size_t len, loff_t *offset) {
-	struct rot13 *rot13 = filep->private_data;
-	size_t sz = min_t(size_t, len, rot13->written);
-	if (copy_to_user(buffer, rot13->buf, sz) != 0)
+	size_t sz;
+	struct rot13 *rot13;
+
+	rot13 = filep->private_data;
+	mutex_lock(&rot13->mtx);
+
+	sz = min_t(size_t, len, rot13->written);
+	if (copy_to_user(buffer, rot13->buf, sz) != 0) {
+		mutex_unlock(&rot13->mtx);
 		return -EFAULT;
+	}
 	rot13->written -= sz;
+
+	mutex_unlock(&rot13->mtx);
 	return sz;
 }
 
 static ssize_t rot13_write(struct file *filep, const char __user *buffer, size_t len, loff_t *offset) {
-	struct rot13 *rot13 = filep->private_data;
-	size_t sz = min_t(size_t, len, BUF_SIZE);
-	if (copy_from_user(rot13->buf, buffer, sz) != 0)
+	size_t sz;
+	struct rot13 *rot13;
+
+	rot13 = filep->private_data;
+	mutex_lock(&rot13->mtx);
+
+	sz = min_t(size_t, len, BUF_SIZE);
+	if (copy_from_user(rot13->buf, buffer, sz) != 0) {
+		mutex_unlock(&rot13->mtx);
 		return -EFAULT;
+	}
 	do_rot13(rot13->buf, sz);
 	rot13->written = sz;
+
+	mutex_unlock(&rot13->mtx);
 	return sz;
 }
 
