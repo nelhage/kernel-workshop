@@ -6,12 +6,15 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 
-#include <linux/device.h>
-#include <linux/fs.h>
-#include <asm/uaccess.h>
+#include <linux/slab.h>      /* kmalloc() and kfree() */
+#include <linux/device.h>    /* register_chrdev and friends */
+#include <linux/fs.h>        /* struct file_operations */
+#include <asm/uaccess.h>     /* copy_{to,from}_user */
 
-#define  DEVICE_NAME "rot13"
-#define  CLASS_NAME  "rot13"
+#define DEVICE_NAME "rot13"
+#define CLASS_NAME  "rot13"
+
+#define BUF_SIZE 2048
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Nelson Elhage");
@@ -35,19 +38,55 @@ static struct file_operations rot13_fops =
    .release = rot13_release,
 };
 
+struct rot13 {
+	char buf[BUF_SIZE];
+	size_t written;
+};
+
+void do_rot13(char *data, size_t len) {
+	char *p;
+	for (p = data; p < data + len; p++) {
+		char ch = *p;
+		if (ch >= 'A' && ch <= 'Z') {
+			*p = 'A' + (ch - 'A' + 13) % 26;
+		} else if (ch >= 'a' && ch <= 'z') {
+			*p = 'a' + (ch - 'a' + 13) % 26;
+		}
+	}
+}
+
 static int rot13_open(struct inode *inodep, struct file *filep) {
+	struct rot13 *rot13 = kmalloc(GFP_KERNEL, sizeof *rot13);
+	if (rot13 == NULL)
+		return -ENOMEM;
+	rot13->written = 0;
+	filep->private_data = rot13;
 	return 0;
 }
 
 static ssize_t rot13_read(struct file *filep, char __user *buffer, size_t len, loff_t *offset) {
-	return -EINVAL;
+	struct rot13 *rot13 = filep->private_data;
+	size_t sz = min_t(size_t, len, rot13->written);
+	if (copy_to_user(buffer, rot13->buf, sz) != 0)
+		return -EFAULT;
+	rot13->written -= sz;
+	return sz;
 }
 
-static ssize_t rot13_write(struct file *filep, const char *buffer, size_t len, loff_t *offset) {
-	return -EINVAL;
+static ssize_t rot13_write(struct file *filep, const char __user *buffer, size_t len, loff_t *offset) {
+	struct rot13 *rot13 = filep->private_data;
+	size_t sz = min_t(size_t, len, BUF_SIZE);
+	if (copy_from_user(rot13->buf, buffer, sz) != 0)
+		return -EFAULT;
+	do_rot13(rot13->buf, sz);
+	rot13->written = sz;
+	return sz;
 }
 
 static int rot13_release(struct inode *inodep, struct file *filep) {
+	struct rot13 *rot13 = filep->private_data;
+	if (rot13 != NULL)
+		kfree(rot13);
 	return 0;
 }
 
