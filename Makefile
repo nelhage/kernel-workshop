@@ -1,5 +1,4 @@
 obj-m += hello-rc.o
-# obj-m += hello-packet.o
 obj-m += hello-rot13.o
 
 all:
