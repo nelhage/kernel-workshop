@@ -66,24 +66,6 @@ static int rot13_open(struct inode *inodep, struct file *filep) {
 	return 0;
 }
 
-static ssize_t rot13_read(struct file *filep, char __user *buffer, size_t len, loff_t *offset) {
-	size_t sz;
-	struct rot13 *rot13;
-
-	rot13 = filep->private_data;
-	mutex_lock(&rot13->mtx);
-
-	sz = min_t(size_t, len, rot13->written);
-	if (copy_to_user(buffer, rot13->buf, sz) != 0) {
-		mutex_unlock(&rot13->mtx);
-		return -EFAULT;
-	}
-	rot13->written -= sz;
-
-	mutex_unlock(&rot13->mtx);
-	return sz;
-}
-
 static ssize_t rot13_write(struct file *filep, const char __user *buffer, size_t len, loff_t *offset) {
 	size_t sz;
 	struct rot13 *rot13;
@@ -98,6 +80,24 @@ static ssize_t rot13_write(struct file *filep, const char __user *buffer, size_t
 	}
 	do_rot13(rot13->buf, sz);
 	rot13->written = sz;
+
+	mutex_unlock(&rot13->mtx);
+	return sz;
+}
+
+static ssize_t rot13_read(struct file *filep, char __user *buffer, size_t len, loff_t *offset) {
+	size_t sz;
+	struct rot13 *rot13;
+
+	rot13 = filep->private_data;
+	mutex_lock(&rot13->mtx);
+
+	sz = min_t(size_t, len, rot13->written);
+	if (copy_to_user(buffer, rot13->buf, sz) != 0) {
+		mutex_unlock(&rot13->mtx);
+		return -EFAULT;
+	}
+	rot13->written -= sz;
 
 	mutex_unlock(&rot13->mtx);
 	return sz;
