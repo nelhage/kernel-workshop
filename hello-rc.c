@@ -13,12 +13,12 @@ MODULE_VERSION("0.1");
 
 
 static int __init hello_rc_init(void){
-   printk(KERN_INFO "Hello, Recurse Center!\n");
-   return 0;
+	printk(KERN_INFO "Hello, Recurse Center!\n");
+	return 0;
 }
 
 static void __exit hello_rc_exit(void){
-   printk(KERN_INFO "Never Graduate!\n");
+	printk(KERN_INFO "Never Graduate!\n");
 }
 
 
