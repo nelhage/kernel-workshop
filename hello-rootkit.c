@@ -9,7 +9,7 @@
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Nelson Elhage");
-MODULE_DESCRIPTION("Definitely Not A Rootkit");
+MODULE_DESCRIPTION("Definitely Not A Rootkit (It's totally a rootkit)");
 MODULE_VERSION("0.1");
 
 static bool hide_self;
